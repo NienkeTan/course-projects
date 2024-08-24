@@ -4,7 +4,7 @@ import numpy as np
 def mesh_function(f, t):
     result = np.array([])
     for time in t:
-        np.append(result, f(t))
+        result = np.append(result, f(time))
     return result
 
 def func(t):
