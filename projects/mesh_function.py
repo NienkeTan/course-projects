@@ -1,13 +1,13 @@
 import numpy as np
-import plotly.express as px
+#import plotly.express as px
 
 
 def mesh_function(f, t):
     result = np.array([])
     for time in t:
         result = np.append(result, f(time))
-    fig = px.line(x=t, y=result)
-    fig.show()
+    #fig = px.line(x=t, y=result)
+    #fig.show()
     return result
 
 def func(t):
