@@ -38,7 +38,7 @@ class Wave1D:
 
         Paramters
         ---------
-        bc : int
+        bc : dict
             Boundary condition
 
         Note
@@ -46,11 +46,22 @@ class Wave1D:
         The returned matrix is not divided by dx**2
         """
         D = sparse.diags([1, -2, 1], [-1, 0, 1], (self.N+1, self.N+1), 'lil')
-        if bc == 1: # Neumann condition is baked into stencil
-            raise NotImplementedError
+        left_bc = bc['left']
+        right_bc = bc['right']
 
-        elif bc == 3: # periodic (Note u[0] = u[-1])
-            raise NotImplementedError
+        if (left_bc == 3 and not right_bc == 3) or (not left_bc == 3 and right_bc == 3):
+            raise RuntimeError("Periodic bc cannot be one-sided")
+        
+        if left_bc == 0: # Dirichlet condition
+            D[0, :3] = 0, 0, 0
+        if right_bc == 0:
+            D[-1, -3:] = 0, 0, 0
+        if left_bc == 1: # Neumann condition is baked into stencil
+            D[0, 1] = 2
+        if right_bc == 1:
+            D[-1, -2] = 2
+        if left_bc == 3 and right_bc == 3: # periodic (Note u[0] = u[-1])
+            D[0, -2] = 1
 
         return D
 
@@ -71,27 +82,35 @@ class Wave1D:
 
         """
         u = u if u is not None else self.unp1
-        if bc == 0: # Dirichlet condition
-            u[0] = 0
-            u[-1] = 0
+        left_bc = bc['left']
+        right_bc = bc['right']
 
-        elif bc == 1: # Neumann condition
+        C = self.cfl
+
+        if left_bc == 0: # Dirichlet condition
             pass
+        if right_bc == 0:
+            pass
+        if left_bc == 1: # Neumann condition
+            pass
+        if right_bc == 1:
+            pass
+        if left_bc == 2: # Open boundary
+            u[0] = 2*(1-C)*self.un[0] - (1-C)/(1+C)*self.unm1[0] + 2*C**2/(1+C)*self.un[1]
+        if right_bc == 2:
+            u[-1] = 2*(1-C)*self.un[-1] - (1-C)/(1+C)*self.unm1[-1] + 2*C**2/(1+C)*self.un[-2]
 
-        elif bc == 2: # Open boundary
-            raise NotImplementedError
+        if left_bc == 3 and right_bc == 3:   # periodic boundary
+            u[-1] = u[0]
 
-        elif bc == 3:
-            raise NotImplementedError
-
-        else:
+        if left_bc not in [0,1,2,3] or right_bc not in [0, 1, 2, 3]:
             raise RuntimeError(f"Wrong bc = {bc}")
 
     @property
     def dt(self):
         return self.cfl*self.dx/self.c
 
-    def __call__(self, Nt, cfl=None, bc=0, ic=0, save_step=100):
+    def __call__(self, Nt, cfl=None, bc={'left': 0, 'right': 0}, ic=0, save_step=100):
         """Solve wave equation
 
         Parameters
@@ -179,29 +198,30 @@ class Wave1D:
 
 def test_pulse_bcs():
     sol = Wave1D(100, cfl=1, L0=2, c0=1)
-    data = sol(100, bc=0, ic=0, save_step=100)
+    
+    data = sol(100, bc={'left': 0, 'right': 0}, ic=1, save_step=100)
     assert np.linalg.norm(data[0]+data[100]) < 1e-12
-    data = sol(100, bc=0, ic=1, save_step=100)
-    assert np.linalg.norm(data[0]+data[100]) < 1e-12
-    data = sol(100, bc=1, ic=0, save_step=100)
-    assert np.linalg.norm(data[0]-data[100]) < 1e-12
-    data = sol(100, bc=1, ic=1, save_step=100)
-    assert np.linalg.norm(data[0]-data[100]) < 1e-12
-    data = sol(100, bc=2, ic=0, save_step=100)
+    
+    data = sol(100, bc={'left': 0, 'right': 1}, ic=1, save_step=100)
     assert np.linalg.norm(data[100]) < 1e-12
-    data = sol(100, bc=2, ic=1, save_step=100)
-    assert np.linalg.norm(data[100]) < 1e-12
-    data = sol(100, bc=3, ic=0, save_step=100)
+
+    data = sol(100, bc={'left': 1, 'right': 1}, ic=1, save_step=100)
     assert np.linalg.norm(data[0]-data[100]) < 1e-12
-    data = sol(100, bc=3, ic=1, save_step=100)
+
+    data = sol(100, bc={'left': 2, 'right': 0}, ic=1, save_step=100)
+    assert np.linalg.norm(data[0]+2*data[100]) < 1e-12
+
+    data = sol(100, bc={'left': 2, 'right': 1}, ic=1, save_step=100)
+    assert np.linalg.norm(data[0]-2*data[100]) < 1e-12
+  
+    data = sol(100, bc={'left': 3, 'right': 3}, ic=1, save_step=100)
     assert np.linalg.norm(data[0]-data[100]) < 1e-12
 
 
 
 if __name__ == '__main__':
-    #sol = Wave1D(100, cfl=1, L0=2, c0=1)
-    #data = sol(100, bc=3, save_step=1, ic=1)
-    #sol.animation(data)
-    test_pulse_bcs()
-    #data = sol(200, bc=2, ic=0, save_step=100)
+    sol = Wave1D(100, cfl=1, L0=2, c0=1)
+    data = sol(105, bc={'left': 0, 'right': 1}, save_step=1, ic=1)
+    sol.animation(data)
+
 
